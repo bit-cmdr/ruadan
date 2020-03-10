@@ -14,6 +14,15 @@ import (
 
 var ErrInvalidConfig = errors.New("cfg must be a struct pointer")
 
+type ConfigurationOption struct {
+	jsonName     string
+	envName      string
+	flagName     string
+	usage        string
+	defaultValue interface{}
+	useCLI       bool
+}
+
 type Decoder interface {
 	Decode(value string) error
 }
@@ -21,6 +30,75 @@ type Decoder interface {
 type Setter interface {
 	Set(value string) error
 }
+
+type ConfigurationOptions func(*ConfigurationOption)
+
+func OptionFlagName(name string) ConfigurationOptions {
+	return func(o *ConfigurationOption) {
+		o.flagName = name
+		o.useCLI = true
+	}
+}
+
+func OptionFlagUsage(usage string) ConfigurationOptions {
+	return func(o *ConfigurationOption) {
+		o.usage = usage
+		o.useCLI = true
+	}
+}
+
+func OptionBoolDefault(value bool) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.defaultValue = value }
+}
+
+func OptionStringDefault(value string) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.defaultValue = value }
+}
+
+func OptionIntDefault(value int) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.defaultValue = value }
+}
+
+func OptionInt64Default(value int64) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.defaultValue = value }
+}
+
+func OptionFloat64Default(value float64) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.defaultValue = value }
+}
+
+func NewOption(jsonName string, envName string, options ...ConfigurationOptions) ConfigurationOption {
+	opt := &ConfigurationOption{jsonName: jsonName, envName: envName}
+
+	for _, o := range options {
+		o(opt)
+	}
+
+	if opt.useCLI && opt.usage == "" {
+		opt.usage = opt.flagName
+	}
+
+	return *opt
+}
+
+// GetConfig takes in the FlagSet pointer and a pointer to the struct to hydrate
+// func GetConfig(cfg interface{}) (*flag.FlagSet, error) {
+// 	cm := make(map[string]interface{})
+// 	fs.VisitAll(func(f *flag.Flag) {
+// 		cm[f.Name] = f.Value
+// 	})
+
+// 	body, err := json.Marshal(cm)
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	if err := json.Unmarshal(body, cfg); err != nil {
+// 		return err
+// 	}
+
+// 	return nil
+// }
 
 func GetConfigFlagSet(args []string, cfg interface{}) (*flag.FlagSet, error) {
 	metas, err := reflectConfig("", cfg)
@@ -43,6 +121,55 @@ func GetConfigFlagSet(args []string, cfg interface{}) (*flag.FlagSet, error) {
 
 	return fs, nil
 }
+
+// func Configure(cfg interface{}, options ...ConfigurationOption) (*flag.FlagSet, error) {
+// 	for _, o := range options {
+// 		switch o.defaultValue.(type) {
+// 		case bool:
+// 			dv, err := lookupEnvOrBool(o.envName, o.defaultValue.(bool))
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			if o.useCLI {
+// 				flag.Bool(o.flagName, dv, o.usage)
+// 			}
+// 		case int:
+// 			dv, err := lookupEnvOrInt(o.envName, o.defaultValue.(int))
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			if o.useCLI {
+// 				flag.Int(o.flagName, dv, o.usage)
+// 			}
+// 		case int64:
+// 			dv, err := lookupEnvOrInt64(o.envName, o.defaultValue.(int64))
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			if o.useCLI {
+// 				flag.Int64(o.flagName, dv, o.usage)
+// 			}
+// 		case float64:
+// 			dv, err := lookupEnvOrFloat64(o.envName, o.defaultValue.(float64))
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			if o.useCLI {
+// 				flag.Float64(o.flagName, dv, o.usage)
+// 			}
+// 		default:
+// 			dv, err := lookupEnvOrString(o.envName, o.defaultValue.(string))
+// 			if err != nil {
+// 				return nil, err
+// 			}
+// 			if o.useCLI {
+// 				flag.String(o.flagName, dv, o.usage)
+// 			}
+// 		}
+// 	}
+
+// 	return nil, nil
+// }
 
 func parseMeta(fs *flag.FlagSet, meta fieldMeta) error {
 	field := meta.Field
@@ -384,6 +511,9 @@ func reflectConfig(prefix string, cfg interface{}) ([]fieldMeta, error) {
 	for i := 0; i < c.NumField(); i++ {
 		f := c.Field(i)
 		ft := ct.Field(i)
+		// if !f.CanSet() || mustParseBool(ft.Tag.Get("ignored")) {
+		// 	continue
+		// }
 		if !f.CanSet() {
 			continue
 		}
@@ -411,6 +541,7 @@ func reflectConfig(prefix string, cfg interface{}) ([]fieldMeta, error) {
 		}
 
 		meta.Key = meta.Name
+		// TODO: split words?
 
 		if meta.AltENV != "" {
 			meta.Key = meta.AltENV
