@@ -57,27 +57,27 @@ read so far:
 {TestString: TestInt:0 TestFloat:0 Pass:true}
 
 $ go run main.go -testint 1
--TEST_STRING string
-        TEST_STRING
--testint int
-        testint
--testfloat float64
-        set a float 64 value
--pass
-        pass
+  -TEST_STRING string
+    	flag: TEST_STRING or env: TEST_STRING
+  -pass
+    	flag: pass or env: PASS
+  -testfloat float
+    	set a float 64 value
+  -testint int
+    	flag: testint or env: TEST_INT
 
 read so far:
 {TestString: TestInt:1 TestFloat:0 Pass:false}
 
 $ go run main.go -TEST_STRING test
--TEST_STRING string
-        TEST_STRING
--testint int
-        testint
--testfloat float64
-        set a float 64 value
--pass
-        pass
+  -TEST_STRING string
+    	flag: TEST_STRING or env: TEST_STRING
+  -pass
+    	flag: pass or env: PASS
+  -testfloat float
+    	set a float 64 value
+  -testint int
+    	flag: testint or env: TEST_INT
         
 read so far:
 {TestString:test TestInt:0 TestFloat:0 Pass:false}
@@ -98,9 +98,9 @@ type example struct {
 }
 ```
 
-* `NoTags` will look for an env of `NOTAGS` and a cli of `NoTags` and have a description of `NoTags`
-* `EnvConfig` will look for an env of `EX_CONF` and a cli of `EX_CONF` and have a description of `EX_CONF`
-* `EnvCliConfig` will look for an env of `CONF` and a cli of `conf` and have a description of `conf`
+* `NoTags` will look for an env of `NOTAGS` and a cli of `N0TAGS` and have a description of `flag: NOTAGS or env: NOTAGS`
+* `EnvConfig` will look for an env of `EX_CONF` and a cli of `EX_CONF` and have a description of `flag: EX_CONF or env: EX_CONF`
+* `EnvCliConfig` will look for an env of `CONF` and a cli of `conf` and have a description of `flag: conf or env: CONF`
 * `CliDesc` will look for an env of `CLIDESC` and a cli of `CliDesc` and have a description of `simple usage explanation`
 
 It's meant to be as conventional as possible with the option to be incredibly specific
