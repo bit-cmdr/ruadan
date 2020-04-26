@@ -16,6 +16,8 @@ $ go get github.com/bit-cmdr/ruadan
 
 ### Example Usage
 
+#### Predefined struct
+
 ```go
 package main
 
@@ -23,7 +25,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/bit-cmdr/ruadan"
+	rd "github.com/bit-cmdr/ruadan"
 )
 
 type config struct {
@@ -36,7 +38,7 @@ type config struct {
 func main() {
 	var cfg config
 
-	fs, err := ruadan.GetConfigFlagSet(os.Args[1:], &cfg)
+	fs, err := rd.GetConfigFlagSet(os.Args[1:], &cfg)
 	if err != nil {
 		log.Fatalf("Unable to configure:\n%v\n", err)
 	}
@@ -49,7 +51,66 @@ func main() {
 }
 ```
 
-Output
+#### Undefined struct method
+
+```go
+package main
+
+import (
+	"log"
+	"os"
+
+	rd "github.com/bit-cmdr/ruadan"
+)
+
+func main() {
+	cfg := rd.BuildConfig(
+		rd.NewOption(
+      "TestString", 
+      rd.OptionENVName("TEST_STRING"), 
+      rd.OptionStringDefault(""), 
+      rd.OptionCLIName("TEST_STRING"), 
+      rd.OptionJSONName("testString"),
+    ),
+		rd.NewOption(
+      "TestInt", 
+      rd.OptionENVName("TEST_INT"), 
+      rd.OptionInt64Default(0), 
+      rd.OptionCLIName("testint"), 
+      rd.OptionJSONName("testInt"),
+    ),
+		rd.NewOption(
+      "TestFloat", 
+      rd.OptionENVName("TEST_FLOAT"), 
+      rd.OptionFloat64Default(0), 
+      rd.OptionCLIName("testfloat"), 
+      rd.OptionJSONName("testFloat"), 
+      rd.OptionCLIUsage("set a float 64 value"),
+    ),
+		rd.NewOption(
+      "Pass", 
+      rd.OptionENVName("PASS"), 
+      rd.OptionBoolDefault(false), 
+      rd.OptionCLIName("pass"), 
+      rd.OptionJSONName("pass"),
+    ),
+  )
+  
+  // Note that the cfg.Config returned here is already a pointer, there's no need to pass by address
+	fs, err := ruadan.GetConfigFlagSet(os.Args[1:], cfg.Config)
+	if err != nil {
+		log.Fatalf("Unable to configure:\n%v\n", err)
+	}
+
+	if !cfg.GetBool("Pass") {
+		fs.PrintDefaults()
+	}
+
+	log.Printf("read so far:\n%+v\n", cfg)
+}
+```
+
+#### Output for either method
 
 ```sh
 $ go run main.go -pass
@@ -92,7 +153,7 @@ read so far:
 ```go
 type example struct {
     NoTags       int
-    EnvConfig    int `envvonfig:"EX_CONF"`
+    EnvConfig    int `envconfig:"EX_CONF"`
     EnvCliConfig int `envcli:"conf"`
     CliDesc      int `clidesc:"simple usage explanation"`
 }
@@ -104,3 +165,25 @@ type example struct {
 * `CliDesc` will look for an env of `CLIDESC` and a cli of `CliDesc` and have a description of `simple usage explanation`
 
 It's meant to be as conventional as possible with the option to be incredibly specific
+
+#### Build Config
+
+```go
+cfg := rd.BuildConfig(
+  rd.NewOption(
+    "Example",
+    rd.OptionENVName("ENV_NAME")
+    rd.OptionJSONName("jsonName")
+    rd.OptionCLIName("cliflagname")
+    rd.OptionCLIUsage("use this to describe how to use it from the cli")
+    rd.OptionBoolDefault(false)
+  )
+)
+```
+
+* `NewOption` will add a new field to your struct. The first parameter is the name of the field, remember Go's naming conventions for exposing a field and capitalize the first letter. The rest of the Option fields are optional except a default value; That's required to determine type.
+* `OptionENVName` is used to set the `envconfig` tag on the field
+* `OptionJSONName` is used to set the `json` tag on the field
+* `OptionCLIName` is used to set the `envcli` tag on the field
+* `OptionCLIUsage` is used to set the `clidesc` tag on the field
+* `OptionXDefault` where `X` is the desired type, is used to set the default value and determin the fields final type
