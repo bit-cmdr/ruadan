@@ -9,15 +9,17 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unsafe"
 )
 
 var ErrInvalidConfig = errors.New("cfg must be a struct pointer")
 
 type ConfigurationOption struct {
-	jsonName     string
+	name         string
 	envName      string
-	flagName     string
+	cliName      string
+	jsonName     string
 	usage        string
 	defaultValue interface{}
 	useCLI       bool
@@ -33,9 +35,29 @@ type Setter interface {
 
 type ConfigurationOptions func(*ConfigurationOption)
 
+type Configuration struct {
+	Config interface{}
+}
+
+func (c *Configuration) GetBool(name string) bool {
+	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Bool()
+}
+
+func (c *Configuration) GetString(name string) string {
+	return reflect.ValueOf(c.Config).Elem().FieldByName(name).String()
+}
+
+func (c *Configuration) GetInt64(name string) int64 {
+	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Int()
+}
+
+func (c *Configuration) GetFloat64(name string) float64 {
+	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Float()
+}
+
 func OptionFlagName(name string) ConfigurationOptions {
 	return func(o *ConfigurationOption) {
-		o.flagName = name
+		o.cliName = name
 		o.useCLI = true
 	}
 }
@@ -55,10 +77,6 @@ func OptionStringDefault(value string) ConfigurationOptions {
 	return func(o *ConfigurationOption) { o.defaultValue = value }
 }
 
-func OptionIntDefault(value int) ConfigurationOptions {
-	return func(o *ConfigurationOption) { o.defaultValue = value }
-}
-
 func OptionInt64Default(value int64) ConfigurationOptions {
 	return func(o *ConfigurationOption) { o.defaultValue = value }
 }
@@ -67,38 +85,41 @@ func OptionFloat64Default(value float64) ConfigurationOptions {
 	return func(o *ConfigurationOption) { o.defaultValue = value }
 }
 
-func NewOption(jsonName string, envName string, options ...ConfigurationOptions) ConfigurationOption {
-	opt := &ConfigurationOption{jsonName: jsonName, envName: envName}
+func OptionJSONName(name string) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.jsonName = jsonify(name) }
+}
+
+func OptionENVName(name string) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.envName = envify(name) }
+}
+
+func OptionCLIName(name string) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.cliName = snakify(name) }
+}
+
+func OptionCLIUsage(usage string) ConfigurationOptions {
+	return func(o *ConfigurationOption) { o.usage = usage }
+}
+
+func NewOption(name string, options ...ConfigurationOptions) ConfigurationOption {
+	opt := &ConfigurationOption{
+		name:     name,
+		envName:  envify(name),
+		jsonName: jsonify(name),
+		useCLI:   true,
+		cliName:  snakify(name),
+	}
 
 	for _, o := range options {
 		o(opt)
 	}
 
 	if opt.useCLI && opt.usage == "" {
-		opt.usage = opt.flagName
+		opt.usage = opt.name
 	}
 
 	return *opt
 }
-
-// GetConfig takes in the FlagSet pointer and a pointer to the struct to hydrate
-// func GetConfig(cfg interface{}) (*flag.FlagSet, error) {
-// 	cm := make(map[string]interface{})
-// 	fs.VisitAll(func(f *flag.Flag) {
-// 		cm[f.Name] = f.Value
-// 	})
-
-// 	body, err := json.Marshal(cm)
-// 	if err != nil {
-// 		return err
-// 	}
-
-// 	if err := json.Unmarshal(body, cfg); err != nil {
-// 		return err
-// 	}
-
-// 	return nil
-// }
 
 func GetConfigFlagSet(args []string, cfg interface{}) (*flag.FlagSet, error) {
 	metas, err := reflectConfig("", cfg)
@@ -122,54 +143,41 @@ func GetConfigFlagSet(args []string, cfg interface{}) (*flag.FlagSet, error) {
 	return fs, nil
 }
 
-// func Configure(cfg interface{}, options ...ConfigurationOption) (*flag.FlagSet, error) {
-// 	for _, o := range options {
-// 		switch o.defaultValue.(type) {
-// 		case bool:
-// 			dv, err := lookupEnvOrBool(o.envName, o.defaultValue.(bool))
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			if o.useCLI {
-// 				flag.Bool(o.flagName, dv, o.usage)
-// 			}
-// 		case int:
-// 			dv, err := lookupEnvOrInt(o.envName, o.defaultValue.(int))
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			if o.useCLI {
-// 				flag.Int(o.flagName, dv, o.usage)
-// 			}
-// 		case int64:
-// 			dv, err := lookupEnvOrInt64(o.envName, o.defaultValue.(int64))
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			if o.useCLI {
-// 				flag.Int64(o.flagName, dv, o.usage)
-// 			}
-// 		case float64:
-// 			dv, err := lookupEnvOrFloat64(o.envName, o.defaultValue.(float64))
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			if o.useCLI {
-// 				flag.Float64(o.flagName, dv, o.usage)
-// 			}
-// 		default:
-// 			dv, err := lookupEnvOrString(o.envName, o.defaultValue.(string))
-// 			if err != nil {
-// 				return nil, err
-// 			}
-// 			if o.useCLI {
-// 				flag.String(o.flagName, dv, o.usage)
-// 			}
-// 		}
-// 	}
+func BuildConfig(options ...ConfigurationOption) Configuration {
+	fields := []reflect.StructField{}
+	for _, o := range options {
+		switch o.defaultValue.(type) {
+		case bool:
+			dv := lookupEnvOrBool(o.envName, o.defaultValue.(bool))
+			if o.useCLI {
+				flag.Bool(o.cliName, dv, o.usage)
+			}
+		case int64:
+			dv := lookupEnvOrInt64(o.envName, o.defaultValue.(int64))
+			if o.useCLI {
+				flag.Int64(o.cliName, dv, o.usage)
+			}
+		case float64:
+			dv := lookupEnvOrFloat64(o.envName, o.defaultValue.(float64))
+			if o.useCLI {
+				flag.Float64(o.cliName, dv, o.usage)
+			}
+		default:
+			dv := lookupEnvOrString(o.envName, o.defaultValue.(string))
+			if o.useCLI {
+				flag.String(o.cliName, dv, o.usage)
+			}
+		}
+		fields = append(fields, reflect.StructField{
+			Name: o.name,
+			Type: reflect.TypeOf(o.defaultValue),
+			Tag:  tags(o),
+		})
+	}
 
-// 	return nil, nil
-// }
+	obj := reflect.StructOf(fields)
+	return Configuration{Config: reflect.New(obj).Interface()}
+}
 
 func parseMeta(fs *flag.FlagSet, meta fieldMeta) error {
 	field := meta.Field
@@ -571,4 +579,49 @@ func reflectConfig(prefix string, cfg interface{}) ([]fieldMeta, error) {
 	}
 
 	return metas, nil
+}
+
+func snakify(s string) string {
+	return strings.ReplaceAll(s, " ", "_")
+}
+
+func envify(s string) string {
+	return strings.ToUpper(snakify(strings.TrimSpace(s)))
+}
+
+func jsonify(s string) string {
+	str := strings.ToLower(snakify(strings.TrimSpace(s)))
+	if !strings.ContainsAny(str, "_") {
+		return str
+	}
+
+	formatted := []rune{}
+	var pr rune
+	for _, r := range str {
+		switch {
+		case pr == '_':
+			formatted = append(formatted, unicode.ToUpper(r))
+		case r != '_':
+			formatted = append(formatted, r)
+		}
+		pr = r
+	}
+	return string(formatted)
+}
+
+func tags(o ConfigurationOption) reflect.StructTag {
+	tag := ""
+	if o.jsonName != "" {
+		tag += ` json:"` + o.jsonName + `" `
+	}
+
+	if o.envName != "" {
+		tag += ` envconfig:"` + o.envName + `" `
+	}
+
+	if o.useCLI {
+		tag += ` envcli:"` + o.cliName + `" clidesc:"` + o.usage + `"`
+	}
+
+	return reflect.StructTag(strings.TrimSpace(tag))
 }
