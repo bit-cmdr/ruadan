@@ -55,34 +55,8 @@ func (c *Configuration) GetFloat64(name string) float64 {
 	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Float()
 }
 
-func OptionFlagName(name string) ConfigurationOptions {
-	return func(o *ConfigurationOption) {
-		o.cliName = name
-		o.useCLI = true
-	}
-}
-
-func OptionFlagUsage(usage string) ConfigurationOptions {
-	return func(o *ConfigurationOption) {
-		o.usage = usage
-		o.useCLI = true
-	}
-}
-
-func OptionBoolDefault(value bool) ConfigurationOptions {
-	return func(o *ConfigurationOption) { o.defaultValue = value }
-}
-
-func OptionStringDefault(value string) ConfigurationOptions {
-	return func(o *ConfigurationOption) { o.defaultValue = value }
-}
-
-func OptionInt64Default(value int64) ConfigurationOptions {
-	return func(o *ConfigurationOption) { o.defaultValue = value }
-}
-
-func OptionFloat64Default(value float64) ConfigurationOptions {
-	return func(o *ConfigurationOption) { o.defaultValue = value }
+func (c *Configuration) GetComplex(name string) interface{} {
+	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Interface()
 }
 
 func OptionJSONName(name string) ConfigurationOptions {
@@ -94,20 +68,50 @@ func OptionENVName(name string) ConfigurationOptions {
 }
 
 func OptionCLIName(name string) ConfigurationOptions {
-	return func(o *ConfigurationOption) { o.cliName = snakify(name) }
+	return func(o *ConfigurationOption) {
+		o.cliName = snakify(name)
+		o.useCLI = true
+	}
 }
 
 func OptionCLIUsage(usage string) ConfigurationOptions {
-	return func(o *ConfigurationOption) { o.usage = usage }
+	return func(o *ConfigurationOption) {
+		o.usage = usage
+		o.useCLI = true
+	}
 }
 
-func NewOption(name string, options ...ConfigurationOptions) ConfigurationOption {
+func NewOptionInt(name string, options ...ConfigurationOptions) ConfigurationOption {
+	return newOption(name, int64(0), options...)
+}
+
+func NewOptionString(name string, options ...ConfigurationOptions) ConfigurationOption {
+	return newOption(name, "", options...)
+}
+
+func NewOptionBool(name string, options ...ConfigurationOptions) ConfigurationOption {
+	return newOption(name, false, options...)
+}
+
+func NewOptionFloat(name string, options ...ConfigurationOptions) ConfigurationOption {
+	return newOption(name, float64(0), options...)
+}
+
+func NewOptionComplex(name string, defaultValue interface{}, options ...ConfigurationOptions) ConfigurationOption {
+	return newOption(name, defaultValue, options...)
+}
+
+func newOption(name string, dv interface{}, options ...ConfigurationOptions) ConfigurationOption {
 	opt := &ConfigurationOption{
 		name:     name,
 		envName:  envify(name),
 		jsonName: jsonify(name),
 		useCLI:   true,
 		cliName:  snakify(name),
+	}
+
+	if dv != nil {
+		opt.defaultValue = dv
 	}
 
 	for _, o := range options {
@@ -519,9 +523,7 @@ func reflectConfig(prefix string, cfg interface{}) ([]fieldMeta, error) {
 	for i := 0; i < c.NumField(); i++ {
 		f := c.Field(i)
 		ft := ct.Field(i)
-		// if !f.CanSet() || mustParseBool(ft.Tag.Get("ignored")) {
-		// 	continue
-		// }
+
 		if !f.CanSet() {
 			continue
 		}
@@ -549,7 +551,6 @@ func reflectConfig(prefix string, cfg interface{}) ([]fieldMeta, error) {
 		}
 
 		meta.Key = meta.Name
-		// TODO: split words?
 
 		if meta.AltENV != "" {
 			meta.Key = meta.AltENV

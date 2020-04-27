@@ -65,32 +65,28 @@ import (
 
 func main() {
 	cfg := rd.BuildConfig(
-		rd.NewOption(
+		rd.NewOptionString(
       "TestString", 
       rd.OptionENVName("TEST_STRING"), 
-      rd.OptionStringDefault(""), 
       rd.OptionCLIName("TEST_STRING"), 
       rd.OptionJSONName("testString"),
     ),
-		rd.NewOption(
+		rd.NewOptionInt(
       "TestInt", 
       rd.OptionENVName("TEST_INT"), 
-      rd.OptionInt64Default(0), 
       rd.OptionCLIName("testint"), 
       rd.OptionJSONName("testInt"),
     ),
-		rd.NewOption(
+		rd.NewOptionFloat(
       "TestFloat", 
       rd.OptionENVName("TEST_FLOAT"), 
-      rd.OptionFloat64Default(0), 
       rd.OptionCLIName("testfloat"), 
       rd.OptionJSONName("testFloat"), 
       rd.OptionCLIUsage("set a float 64 value"),
     ),
-		rd.NewOption(
+		rd.NewOptionBool(
       "Pass", 
       rd.OptionENVName("PASS"), 
-      rd.OptionBoolDefault(false), 
       rd.OptionCLIName("pass"), 
       rd.OptionJSONName("pass"),
     ),
@@ -170,20 +166,26 @@ It's meant to be as conventional as possible with the option to be incredibly sp
 
 ```go
 cfg := rd.BuildConfig(
-  rd.NewOption(
+  rd.NewOptionBool(
     "Example",
     rd.OptionENVName("ENV_NAME")
     rd.OptionJSONName("jsonName")
     rd.OptionCLIName("cliflagname")
     rd.OptionCLIUsage("use this to describe how to use it from the cli")
-    rd.OptionBoolDefault(false)
   )
 )
 ```
 
-* `NewOption` will add a new field to your struct. The first parameter is the name of the field, remember Go's naming conventions for exposing a field and capitalize the first letter. The rest of the Option fields are optional except a default value; That's required to determine type.
+* `NewOptionBool` will add a new field to your struct. The first parameter is the name of the field, remember Go's naming conventions for exposing a field and capitalize the first letter. The rest of the Option fields are optional.
 * `OptionENVName` is used to set the `envconfig` tag on the field
 * `OptionJSONName` is used to set the `json` tag on the field
 * `OptionCLIName` is used to set the `envcli` tag on the field
 * `OptionCLIUsage` is used to set the `clidesc` tag on the field
-* `OptionXDefault` where `X` is the desired type, is used to set the default value and determin the fields final type
+
+In addition to `NewOptionBool` there is also
+
+* `NewOptionInt`
+* `NewOptionString`
+* `NewOptionFloat`
+
+There is also `NewOptionComplex` which takes a default value after the `name` argument in order to determine the underlying type, the value is not used. All of the `NewOption...` functions accept the same options, and their use is the same for all of them.
