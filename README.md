@@ -22,32 +22,32 @@ $ go get github.com/bit-cmdr/ruadan
 package main
 
 import (
-	"log"
-	"os"
+  "log"
+  "os"
 
-	rd "github.com/bit-cmdr/ruadan"
+  rd "github.com/bit-cmdr/ruadan"
 )
 
 type config struct {
-	TestString string  `envconfig:"TEST_STRING"`
-	TestInt    int     `envconfig:"TEST_INT" envcli:"testint"`
-	TestFloat  float64 `envconfig:"TEST_FLOAT" envcli:"testfloat" clidesc:"set a float 64 value"`
-	Pass       bool    `envcli:"pass"`
+  TestString string  `envconfig:"TEST_STRING"`
+  TestInt    int     `envconfig:"TEST_INT" envcli:"testint"`
+  TestFloat  float64 `envconfig:"TEST_FLOAT" envcli:"testfloat" clidesc:"set a float 64 value"`
+  Pass       bool    `envcli:"pass"`
 }
 
 func main() {
-	var cfg config
+  var cfg config
 
-	fs, err := rd.GetConfigFlagSet(os.Args[1:], &cfg)
-	if err != nil {
-		log.Fatalf("Unable to configure:\n%v\n", err)
-	}
+  fs, err := rd.GetConfigFlagSet(os.Args[1:], &cfg)
+  if err != nil {
+    log.Fatalf("Unable to configure:\n%v\n", err)
+  }
 
-	if !cfg.Pass {
-		fs.PrintDefaults()
-	}
+  if !cfg.Pass {
+    fs.PrintDefaults()
+  }
 
-	log.Printf("read so far:\n%+v\n", cfg)
+  log.Printf("read so far:\n%+v\n", cfg)
 }
 ```
 
@@ -57,34 +57,34 @@ func main() {
 package main
 
 import (
-	"log"
-	"os"
+  "log"
+  "os"
 
-	rd "github.com/bit-cmdr/ruadan"
+  rd "github.com/bit-cmdr/ruadan"
 )
 
 func main() {
-	cfg := rd.BuildConfig(
-		rd.NewOptionString(
+  cfg := rd.BuildConfig(
+      rd.NewOptionString(
       "TestString", 
       rd.OptionENVName("TEST_STRING"), 
       rd.OptionCLIName("TEST_STRING"), 
       rd.OptionJSONName("testString"),
     ),
-		rd.NewOptionInt(
+    rd.NewOptionInt(
       "TestInt", 
       rd.OptionENVName("TEST_INT"), 
       rd.OptionCLIName("testint"), 
       rd.OptionJSONName("testInt"),
     ),
-		rd.NewOptionFloat(
+    rd.NewOptionFloat(
       "TestFloat", 
       rd.OptionENVName("TEST_FLOAT"), 
       rd.OptionCLIName("testfloat"), 
       rd.OptionJSONName("testFloat"), 
       rd.OptionCLIUsage("set a float 64 value"),
     ),
-		rd.NewOptionBool(
+    rd.NewOptionBool(
       "Pass", 
       rd.OptionENVName("PASS"), 
       rd.OptionCLIName("pass"), 
@@ -93,16 +93,16 @@ func main() {
   )
   
   // Note that the cfg.Config returned here is already a pointer, there's no need to pass by address
-	fs, err := ruadan.GetConfigFlagSet(os.Args[1:], cfg.Config)
-	if err != nil {
-		log.Fatalf("Unable to configure:\n%v\n", err)
-	}
+  fs, err := ruadan.GetConfigFlagSet(os.Args[1:], cfg.Config)
+  if err != nil {
+    log.Fatalf("Unable to configure:\n%v\n", err)
+  }
 
-	if !cfg.GetBool("Pass") {
-		fs.PrintDefaults()
-	}
+  if !cfg.GetBool("Pass") {
+    fs.PrintDefaults()
+  }
 
-	log.Printf("read so far:\n%+v\n", cfg)
+  log.Printf("read so far:\n%+v\n", cfg)
 }
 ```
 
@@ -115,27 +115,27 @@ read so far:
 
 $ go run main.go -testint 1
   -TEST_STRING string
-    	flag: TEST_STRING or env: TEST_STRING
+      flag: TEST_STRING or env: TEST_STRING
   -pass
-    	flag: pass or env: PASS
+      flag: pass or env: PASS
   -testfloat float
-    	set a float 64 value
+      set a float 64 value
   -testint int
-    	flag: testint or env: TEST_INT
+      flag: testint or env: TEST_INT
 
 read so far:
 {TestString: TestInt:1 TestFloat:0 Pass:false}
 
 $ go run main.go -TEST_STRING test
   -TEST_STRING string
-    	flag: TEST_STRING or env: TEST_STRING
+      flag: TEST_STRING or env: TEST_STRING
   -pass
-    	flag: pass or env: PASS
+      flag: pass or env: PASS
   -testfloat float
-    	set a float 64 value
+      set a float 64 value
   -testint int
-    	flag: testint or env: TEST_INT
-        
+      flag: testint or env: TEST_INT
+
 read so far:
 {TestString:test TestInt:0 TestFloat:0 Pass:false}
 
