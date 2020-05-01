@@ -13,8 +13,12 @@ import (
 	"unsafe"
 )
 
+// ErrInvalidConfig is the default error message if you don't pass the cfg argument as a struct pointer to
+// GetConfigFlagSet
 var ErrInvalidConfig = errors.New("cfg must be a struct pointer")
 
+// ConfigurationOption is the extensible struct used to build up a struct field that will be returned as
+// Configuration.Config
 type ConfigurationOption struct {
 	name         string
 	envName      string
@@ -25,48 +29,61 @@ type ConfigurationOption struct {
 	useCLI       bool
 }
 
+// Decoder interface to decode a string
 type Decoder interface {
 	Decode(value string) error
 }
 
+// Setter interface to set a string value
 type Setter interface {
 	Set(value string) error
 }
 
+// ConfigurationOptions function used to build the individual ConfigurationOption field
 type ConfigurationOptions func(*ConfigurationOption)
 
+// Configuration is returned by BuildConfig as an unknown struct to read valued from after initial creation
 type Configuration struct {
 	Config interface{}
 }
 
+// GetBool gets a boolean value from the key that matches the provided name in the Configuration
 func (c *Configuration) GetBool(name string) bool {
 	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Bool()
 }
 
+// GetString gets a string value from the key that matches the provided name in the Configuration
 func (c *Configuration) GetString(name string) string {
 	return reflect.ValueOf(c.Config).Elem().FieldByName(name).String()
 }
 
+// GetInt64 gets a int64 value from the key that matches the provided name in the Configuration
 func (c *Configuration) GetInt64(name string) int64 {
 	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Int()
 }
 
+// GetFloat64 gets a float64 value from the key that matches the provided name in the Configuration
 func (c *Configuration) GetFloat64(name string) float64 {
 	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Float()
 }
 
+// GetComplex gets an interface value from the key that matches the provided name in the Configuration.
+// This assumes you know what you're asking for and how to cast the result
 func (c *Configuration) GetComplex(name string) interface{} {
 	return reflect.ValueOf(c.Config).Elem().FieldByName(name).Interface()
 }
 
+// OptionJSONName used to add a json: tag to a struct field
 func OptionJSONName(name string) ConfigurationOptions {
 	return func(o *ConfigurationOption) { o.jsonName = jsonify(name) }
 }
 
+// OptionENVName used to add a envconfig: tag to a struct field
 func OptionENVName(name string) ConfigurationOptions {
 	return func(o *ConfigurationOption) { o.envName = envify(name) }
 }
 
+// OptionCLIName used to add a envcli: tag to a struct field; will also assume that there is a cli flag
 func OptionCLIName(name string) ConfigurationOptions {
 	return func(o *ConfigurationOption) {
 		o.cliName = snakify(name)
@@ -74,6 +91,7 @@ func OptionCLIName(name string) ConfigurationOptions {
 	}
 }
 
+// OptionCLIUsage used to add a clidesc: tag to a struct field; will also assume that there is a cli flag
 func OptionCLIUsage(usage string) ConfigurationOptions {
 	return func(o *ConfigurationOption) {
 		o.usage = usage
@@ -81,50 +99,41 @@ func OptionCLIUsage(usage string) ConfigurationOptions {
 	}
 }
 
+// NewOptionInt creates a new int64 struct field with the given name and options. When considering the name, remember
+// Go's syntax of an upper-case first letter
 func NewOptionInt(name string, options ...ConfigurationOptions) ConfigurationOption {
 	return newOption(name, int64(0), options...)
 }
 
+// NewOptionString creates a new string struct field with the given name and options. When considering the name,
+// remember Go's syntax of an upper-case first letter
 func NewOptionString(name string, options ...ConfigurationOptions) ConfigurationOption {
 	return newOption(name, "", options...)
 }
 
+// NewOptionBool creates a new bool struct field with the given name and options. When considering the name, remember
+// Go's syntax of an upper-case first letter
 func NewOptionBool(name string, options ...ConfigurationOptions) ConfigurationOption {
 	return newOption(name, false, options...)
 }
 
+// NewOptionFloat creates a new float64 struct field with the given name and options. When considering the name,
+// remember Go's syntax of an upper-case first letter
 func NewOptionFloat(name string, options ...ConfigurationOptions) ConfigurationOption {
 	return newOption(name, float64(0), options...)
 }
 
+// NewOptionComplex creates a new interface{} struct field with the given name and options. When considering the name,
+// remember Go's syntax of an upper-case first letter
 func NewOptionComplex(name string, defaultValue interface{}, options ...ConfigurationOptions) ConfigurationOption {
 	return newOption(name, defaultValue, options...)
 }
 
-func newOption(name string, dv interface{}, options ...ConfigurationOptions) ConfigurationOption {
-	opt := &ConfigurationOption{
-		name:     name,
-		envName:  envify(name),
-		jsonName: jsonify(name),
-		useCLI:   true,
-		cliName:  snakify(name),
-	}
-
-	if dv != nil {
-		opt.defaultValue = dv
-	}
-
-	for _, o := range options {
-		o(opt)
-	}
-
-	if opt.useCLI && opt.usage == "" {
-		opt.usage = opt.name
-	}
-
-	return *opt
-}
-
+// GetConfigFlagSet takes in the args from the cli and a struct pointer to the struct it will parse. It will look at
+// the tags to determine what keys and areas to look for. The base use case is that you can pass a struct pointer and
+// it will use the envconfig: tag to find the matching environment variable and that can be overridden at launch with a
+// command line flag. The flag will be the same as the envconfig: if not specified, or can be changed with the
+// envcli: tag
 func GetConfigFlagSet(args []string, cfg interface{}) (*flag.FlagSet, error) {
 	metas, err := reflectConfig("", cfg)
 	if err != nil {
@@ -147,6 +156,9 @@ func GetConfigFlagSet(args []string, cfg interface{}) (*flag.FlagSet, error) {
 	return fs, nil
 }
 
+// BuildConfig takes a variable amount of ConfigurationOption arguments and uses them to build a struct. This allows
+// you to be very specific in how to build the struct if you don't want to have a struct at the top of your file and
+// want to build it as you go
 func BuildConfig(options ...ConfigurationOption) Configuration {
 	fields := []reflect.StructField{}
 	for _, o := range options {
@@ -181,6 +193,30 @@ func BuildConfig(options ...ConfigurationOption) Configuration {
 
 	obj := reflect.StructOf(fields)
 	return Configuration{Config: reflect.New(obj).Interface()}
+}
+
+func newOption(name string, dv interface{}, options ...ConfigurationOptions) ConfigurationOption {
+	opt := &ConfigurationOption{
+		name:     name,
+		envName:  envify(name),
+		jsonName: jsonify(name),
+		useCLI:   true,
+		cliName:  snakify(name),
+	}
+
+	if dv != nil {
+		opt.defaultValue = dv
+	}
+
+	for _, o := range options {
+		o(opt)
+	}
+
+	if opt.useCLI && opt.usage == "" {
+		opt.usage = opt.name
+	}
+
+	return *opt
 }
 
 func parseMeta(fs *flag.FlagSet, meta fieldMeta) error {
